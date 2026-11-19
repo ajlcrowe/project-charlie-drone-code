@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Project Charlie: Drone Code</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Crack the jungle code to connect the drone and find Maple, the dog lost in the Amazon.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Lilita+One&family=Nunito:wght@500;700;800;900&display=swap">
+<style>
+/* Layout: one centred "field tablet" panel per scene, floating over an animated rainforest.
+   Deliberately single-theme (dusk rainforest), so colours are set once on :root. */
+:root {
+  color-scheme: dark;
+  /* Colour */
+  --night: #0a2619;      /* deep canopy shadow, page ground */
+  --canopy: #11402b;     /* mid canopy */
+  --moss: #1f6b45;       /* leaves, borders */
+  --leaf: #5cc96b;       /* bright leaf */
+  --sun: #ffc93c;        /* accent: buttons, highlights */
+  --clay: #e5763a;       /* warning, Maple's fur */
+  --water: #2b8c8c;      /* flooded forest */
+  --panel: #0e2a1e;
+  --panel-2: #15392a;
+  --line: #2b5c42;
+  --ink: #f2fae6;
+  --ink-dim: #a9c9ad;
+  --ink-on-sun: #2a1d00;
+  /* Feedback (always paired with a glyph) */
+  --right: #3fc465;
+  --close: #f0b22e;
+  --miss: #4e6156;
+  /* Type */
+  --font-display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: "Chakra Petch", ui-monospace, Menlo, Consolas, monospace;
+  /* Shape */
+  --r-lg: 24px;
+  --r-md: 16px;
+  --r-sm: 12px;
+}
+
+* { box-sizing: border-box; }
+html { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(120% 60% at 50% -10%, #2f7a4c 0%, transparent 60%),
+    radial-gradient(80% 50% at 15% 110%, #0f3a28 0%, transparent 70%),
+    var(--night);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+[tabindex="-1"]:focus { outline: none; } /* headings focused on scene change, for screen readers */
+
+/* ---------- Animated jungle backdrop ---------- */
+.jungle { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.shaft {
+  position: absolute; top: -10%; width: 22vw; height: 120%;
+  background: linear-gradient(180deg, rgba(220,255,180,.10), rgba(220,255,180,0) 70%);
+  transform: rotate(18deg); filter: blur(6px);
+  animation: shaft 9s ease-in-out infinite alternate;
+}
+.shaft:nth-child(2) { left: 55%; width: 14vw; animation-delay: -4s; }
+@keyframes shaft { from { opacity: .4; } to { opacity: 1; } }
+.leaf { position: absolute; width: clamp(130px, 19vw, 250px); }
+.leaf svg { display: block; width: 100%; height: auto; transform-origin: 50% 100%; animation: sway 6s ease-in-out infinite alternate; }
+@keyframes sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+.vine { position: absolute; top: -6px; width: 46px; height: clamp(140px, 26vh, 260px); }
+.vine svg { width: 100%; height: 100%; transform-origin: 50% 0; animation: sway 5s ease-in-out infinite alternate; }
+.firefly {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: #f6ff9e; box-shadow: 0 0 10px 3px rgba(246,255,158,.55);
+  animation: float var(--t, 9s) ease-in-out infinite alternate, glow 2.4s ease-in-out infinite alternate;
+  animation-delay: var(--d, 0s);
+}
+@keyframes float { from { transform: translate(0,0); } to { transform: translate(var(--x, 30px), var(--y, -40px)); } }
+@keyframes glow { from { opacity: .15; } to { opacity: .95; } }
+
+/* ---------- Page frame ---------- */
+.app {
+  position: relative; z-index: 1;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 48px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.hud {
+  width: 100%; max-width: 620px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-family: var(--font-data); font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.hud-brand { color: var(--sun); font-weight: 600; }
+.hud-clock { font-variant-numeric: tabular-nums; }
+.hud-clock b { color: var(--ink); font-weight: 600; }
+.hud-btn {
+  min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px;
+  background: var(--panel); border: 2px solid var(--line); cursor: pointer;
+  font-family: var(--font-data); font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+}
+.hud-btn:hover { border-color: var(--leaf); }
+
+.steps { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.steps span {
+  font-family: var(--font-data); font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 5px 12px; border-radius: 999px; background: rgba(14,42,30,.75); border: 2px solid var(--line); color: var(--ink-dim);
+}
+.steps span.now { border-color: var(--sun); color: var(--sun); }
+.steps span.done { border-color: var(--right); color: var(--ink); }
+.steps span.done::before { content: "✓ "; color: var(--right); }
+
+/* ---------- Panel: a rugged field tablet ---------- */
+.scene { width: 100%; max-width: 620px; }
+.panel {
+  position: relative;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 3px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 22px clamp(16px, 4vw, 30px) 26px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  display: flex; flex-direction: column; gap: 14px;
+  animation: rise .45s ease-out both;
+}
+@keyframes rise { from { transform: translateY(12px); opacity: .6; } to { transform: none; opacity: 1; } }
+/* corner screws */
+.panel::before, .panel::after {
+  content: ""; position: absolute; top: 12px; width: 9px; height: 9px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #6d8f7a, #24402f); box-shadow: 0 0 0 2px rgba(0,0,0,.25);
+}
+.panel::before { left: 12px; }
+.panel::after { right: 12px; }
+.panel-tag {
+  align-self: flex-start;
+  font-family: var(--font-data); font-weight: 600; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-on-sun); background: var(--sun); padding: 4px 10px; border-radius: 6px;
+  margin-left: 14px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; margin: 0; letter-spacing: .01em; text-wrap: balance; line-height: 1.08; }
+h1 { font-size: clamp(44px, 11vw, 68px); color: var(--sun); text-shadow: 0 4px 0 #8a5b00, 0 10px 24px rgba(0,0,0,.4); }
+h2 { font-size: clamp(28px, 6.4vw, 36px); }
+h3 { font-size: 22px; }
+p { margin: 0; }
+.lede { font-size: 18px; font-weight: 700; }
+.how { color: var(--ink-dim); font-weight: 600; }
+.label {
+  font-family: var(--font-data); font-weight: 600; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim);
+  margin-bottom: -6px;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  min-height: 52px; padding: 10px 22px; border-radius: 999px; cursor: pointer; border: 0;
+  font-family: var(--font-display); font-size: 21px; letter-spacing: .02em;
+  transition: transform .12s ease, filter .12s ease, opacity .2s;
+}
+.btn:active { transform: translateY(2px) scale(.98); }
+.btn-go { background: var(--sun); color: var(--ink-on-sun); box-shadow: 0 5px 0 #a87400; }
+.btn-go:hover { filter: brightness(1.07); }
+.btn-go:active { box-shadow: 0 2px 0 #a87400; }
+.btn-ghost { background: transparent; color: var(--ink); border: 2px solid var(--line); font-size: 17px; min-height: 48px; padding: 8px 16px; }
+.btn-ghost:hover { border-color: var(--leaf); }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; filter: none; }
+.btn-wide { width: 100%; }
+
+/* ---------- Icons ---------- */
+.ico { display: block; width: 100%; height: 100%; }
+
+/* ---------- Title scene ---------- */
+.brief { text-align: left; }
+.drone-stage { position: relative; height: 96px; overflow: hidden; margin: 4px -6px -4px; }
+.drone-stage .drone { position: absolute; top: 10px; width: 120px; animation: fly 7s ease-in-out infinite; }
+@keyframes fly {
+  0% { left: -130px; transform: translateY(0) rotate(4deg); }
+  45% { left: calc(50% - 60px); transform: translateY(10px) rotate(0); }
+  55% { left: calc(50% - 60px); transform: translateY(4px) rotate(0); }
+  100% { left: calc(100% + 10px); transform: translateY(0) rotate(4deg); }
+}
+.drone .rotor { transform-box: fill-box; transform-origin: center; animation: spin .12s linear infinite; }
+@keyframes spin { 0% { transform: scaleX(1); } 50% { transform: scaleX(.25); } 100% { transform: scaleX(1); } }
+.drone .blink { animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .15; } }
+.mission { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; counter-reset: m; }
+.mission li {
+  display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: start;
+  background: rgba(0,0,0,.18); border-radius: var(--r-md); padding: 12px 14px; counter-increment: m;
+}
+.mission li::before {
+  content: counter(m); display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  font-family: var(--font-display); font-size: 22px; background: var(--moss); color: var(--ink);
+}
+.mission b { display: block; font-weight: 900; }
+.mission span { color: var(--ink-dim); font-weight: 600; }
+
+/* ---------- Step 1: cipher ---------- */
+.key-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.key-tile {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #f4ecd2; color: #2a2414; border-radius: var(--r-sm); padding: 8px 6px;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.12);
+}
+.key-tile .ico { width: 44px; height: 44px; flex: none; }
+.key-tile .eq { font-family: var(--font-display); font-size: 28px; line-height: 1; min-width: 1.4ch; }
+.key-tile .eq::before { content: "= "; font-size: 18px; opacity: .55; }
+.signal {
+  position: relative; border-radius: var(--r-md); padding: 18px 12px 14px;
+  background: #06170f; border: 2px solid var(--line);
+  display: flex; justify-content: center; gap: clamp(10px, 4vw, 26px); overflow: hidden;
+}
+.signal::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(92,201,107,.18), transparent);
+  width: 40%; animation: scan 2.6s linear infinite;
+}
+@keyframes scan { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.sig-cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sig-icon { width: 68px; height: 68px; padding: 6px; border-radius: var(--r-sm); background: rgba(255,255,255,.06); animation: hover 2.4s ease-in-out infinite alternate; }
+.sig-cell:nth-child(2) .sig-icon { animation-delay: -.8s; }
+.sig-cell:nth-child(3) .sig-icon { animation-delay: -1.6s; }
+@keyframes hover { from { transform: translateY(-2px); } to { transform: translateY(3px); } }
+.digit {
+  width: 60px; height: 64px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 36px;
+  background: var(--panel-2); border: 3px dashed var(--line); color: var(--ink);
+}
+.digit.next { border-color: var(--sun); border-style: solid; }
+.digit.filled { border-style: solid; border-color: var(--ink-dim); }
+.digit.ok { background: var(--right); border-color: var(--right); color: #062512; }
+.digit { position: relative; }
+.digit.ok::after, .digit.bad::after { font-size: 14px; position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-body); font-weight: 900; }
+.digit.ok::after { content: "✓"; background: #fff; color: #1e7a3c; }
+.digit.bad { background: var(--clay); border-color: var(--clay); border-style: solid; color: #2a0d00; animation: shake .4s; }
+.digit.bad::after { content: "✕"; background: #fff; color: #b5441a; }
+@keyframes shake { 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
+.keypad { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.kp {
+  min-height: 56px; border-radius: var(--r-sm); cursor: pointer;
+  font-family: var(--font-display); font-size: 28px;
+  background: var(--panel-2); border: 2px solid var(--line); box-shadow: 0 4px 0 #071a11;
+}
+.kp:hover { border-color: var(--leaf); }
+.kp:active { transform: translateY(3px); box-shadow: 0 1px 0 #071a11; }
+.kp.del { font-size: 20px; font-family: var(--font-body); font-weight: 900; }
+.status { min-height: 1.5em; font-weight: 800; text-align: center; }
+.status.good { color: var(--right); }
+.status.warn { color: var(--clay); }
+
+/* ---------- Step 2: camera lock ---------- */
+.legend { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-weight: 700; font-size: 14px; color: var(--ink-dim); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.mk { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; font-weight: 900; font-size: 14px; color: #fff; }
+.mk.right { background: var(--right); }
+.mk.close { background: var(--close); color: #3a2600; }
+.mk.miss { background: var(--miss); }
+.battery-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-family: var(--font-data); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); }
+.battery {
+  position: relative; display: flex; gap: 3px; padding: 4px; border: 2px solid var(--ink-dim); border-radius: 7px;
+}
+.battery::after { content: ""; position: absolute; right: -7px; top: 50%; width: 4px; height: 10px; margin-top: -5px; background: var(--ink-dim); border-radius: 0 2px 2px 0; }
+.battery i { width: 14px; height: 18px; border-radius: 3px; background: rgba(255,255,255,.08); transition: background .3s; }
+.battery i.on { background: var(--right); }
+.battery.low i.on { background: var(--clay); animation: blink 1s steps(2) infinite; }
+.battery-text { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.battery-text.low { color: var(--clay); }
+
+.board { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.row { display: grid; grid-template-columns: repeat(4, 64px); gap: 8px; }
+.slot {
+  position: relative; width: 64px; height: 64px; border-radius: var(--r-sm); padding: 7px;
+  background: var(--panel-2); border: 3px solid var(--line);
+  display: grid; place-items: center;
+}
+button.slot { cursor: pointer; }
+button.slot.filled:hover { border-color: var(--clay); }
+.slot.empty { border-style: dashed; }
+.slot .slot-num { font-family: var(--font-data); font-weight: 600; color: var(--line); font-size: 20px; }
+.slot.next { border-color: var(--sun); border-style: solid; }
+.slot.right { background: var(--right); border-color: var(--right); }
+.slot.close { background: var(--close); border-color: var(--close); }
+.slot.miss { background: var(--miss); border-color: var(--miss); }
+.slot.miss .ico { opacity: .55; }
+.slot.hinted { border-color: var(--sun); box-shadow: 0 0 0 3px rgba(255,201,60,.35); }
+.badge {
+  position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px; font-weight: 900;
+  background: #fff; color: #1d2b23; box-shadow: 0 2px 4px rgba(0,0,0,.35);
+}
+.slot.right .badge { color: #1e7a3c; }
+.slot.close .badge { color: #9a6a00; }
+.badge.hint { background: var(--sun); color: var(--ink-on-sun); }
+.row.reveal .slot { animation: flip .45s ease-out both; animation-delay: var(--d, 0ms); }
+@keyframes flip { 0% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+.row.win .slot { animation: pop .5s ease-out both; animation-delay: var(--d, 0ms); }
+@keyframes pop { 50% { transform: scale(1.15) translateY(-6px); } }
+.row.current { padding: 6px; margin: -6px; border-radius: calc(var(--r-sm) + 6px); background: rgba(255,201,60,.08); }
+
+.picker { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.pick {
+  position: relative; aspect-ratio: 1; max-width: 100%; min-height: 48px; padding: 6px; cursor: pointer;
+  border-radius: var(--r-sm); background: #f4ecd2; border: 3px solid #f4ecd2; box-shadow: 0 4px 0 #a99c72;
+}
+.pick:hover { border-color: var(--sun); }
+.pick:active { transform: translateY(3px); box-shadow: 0 1px 0 #a99c72; }
+.pick:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+.pick.out { background: #8d9690; border-color: #8d9690; box-shadow: 0 4px 0 #555e58; }
+.pick.out .ico { opacity: .5; }
+.pick.in { border-color: var(--right); }
+.pick-key { position: absolute; left: 5px; bottom: 2px; font-family: var(--font-data); font-size: 11px; color: rgba(0,0,0,.45); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .btn-go { flex: 1 1 160px; }
+.actions .btn-ghost { flex: 1 1 110px; white-space: nowrap; }
+.hint-note { margin: -4px 0 0; text-align: center; font-size: 14px; font-weight: 600; color: var(--ink-dim); }
+
+.uplink { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding-top: 4px; }
+.uplink .drone { width: 140px; animation: hover 1.2s ease-in-out infinite alternate; }
+.bar { width: 100%; height: 18px; border-radius: 999px; background: #06170f; border: 2px solid var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--leaf), var(--sun)); border-radius: 999px; transition: width var(--ms, 2400ms) cubic-bezier(.3,.1,.3,1); }
+.bar.go i { width: 100%; }
+.uplink-text { font-family: var(--font-data); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); }
+
+/* ---------- Overlay (battery empty) ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: rgba(4,16,10,.78); backdrop-filter: blur(3px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+}
+.overlay .panel { max-width: 460px; width: 100%; text-align: center; align-items: center; }
+.overlay .panel-tag { align-self: center; margin-left: 0; background: var(--clay); color: #2a0d00; }
+.code-reveal { display: flex; gap: 8px; justify-content: center; }
+.code-reveal .ico { width: 56px; height: 56px; padding: 6px; background: #f4ecd2; border-radius: var(--r-sm); }
+
+/* ---------- Live feed ---------- */
+.panel-tag.live { background: #e0372f; color: #fff; }
+.feed { position: relative; border-radius: var(--r-md); overflow: hidden; border: 3px solid #06170f; background: #06170f; }
+.feed svg { display: block; width: 100%; height: auto; }
+.feed-hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--font-data); font-weight: 600; font-size: clamp(9px, 2.4vw, 13px); letter-spacing: .08em; color: #eaffea; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+.feed-hud > * { position: absolute; }
+.fh-tl { top: 8px; left: 10px; } .fh-tr { top: 8px; right: 10px; text-align: right; }
+.fh-bl { bottom: 8px; left: 10px; } .fh-br { bottom: 8px; right: 10px; text-align: right; font-variant-numeric: tabular-nums; }
+.rec::before { content: "●"; color: #ff3b30; margin-right: 6px; animation: blink 1s steps(2) infinite; }
+.corner { width: 22px; height: 22px; border: 0 solid rgba(234,255,234,.8); }
+.c1 { top: 28px; left: 10px; border-top-width: 2px; border-left-width: 2px; }
+.c2 { top: 28px; right: 10px; border-top-width: 2px; border-right-width: 2px; }
+.c3 { bottom: 28px; left: 10px; border-bottom-width: 2px; border-left-width: 2px; }
+.c4 { bottom: 28px; right: 10px; border-bottom-width: 2px; border-right-width: 2px; }
+.feed-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,20,10,.55) 100%); }
+.found { color: var(--sun); }
+.cam { animation: drift 8s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: translate(-4px, -3px); } to { transform: translate(4px, 3px); } }
+.wag { transform-box: fill-box; transform-origin: 100% 100%; animation: wag .38s ease-in-out infinite alternate; }
+@keyframes wag { from { transform: rotate(-16deg); } to { transform: rotate(14deg); } }
+.bob { transform-box: fill-box; transform-origin: 20% 90%; animation: bob 1.6s ease-in-out infinite alternate; }
+@keyframes bob { from { transform: rotate(-3deg); } to { transform: rotate(5deg); } }
+.offer { transform-box: fill-box; transform-origin: 100% 100%; animation: offer 1.8s ease-in-out infinite alternate; }
+@keyframes offer { from { transform: rotate(4deg); } to { transform: rotate(-6deg); } }
+.swing { transform-box: fill-box; transform-origin: 50% 100%; animation: bob 2.2s ease-in-out infinite alternate; }
+.rip { transform-box: fill-box; transform-origin: center; animation: rip 3s ease-out infinite; }
+.rip:nth-child(2) { animation-delay: -1s; } .rip:nth-child(3) { animation-delay: -2s; } .rip:nth-child(4) { animation-delay: -.5s; }
+@keyframes rip { from { transform: scale(.3); opacity: .9; } to { transform: scale(1.6); opacity: 0; } }
+.rain { animation: rain .7s linear infinite; }
+@keyframes rain { from { transform: translate(0, -40px); } to { transform: translate(-10px, 40px); } }
+
+/* ---------- Group decision ---------- */
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.choice {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  background: rgba(0,0,0,.2); border: 2px solid var(--line); border-radius: var(--r-md); padding: 16px;
+}
+.choice-art { width: 64px; height: 64px; }
+.choice p { font-weight: 700; }
+.choice ul { margin: 0; padding-left: 18px; color: var(--ink-dim); font-weight: 600; display: grid; gap: 4px; }
+.tally { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 6px; }
+.tally-btn { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 24px; font-weight: 900; }
+.tally-btn:hover { border-color: var(--sun); }
+.tally-count { font-family: var(--font-display); font-size: 34px; font-variant-numeric: tabular-nums; text-align: center; }
+.tally-count small { display: block; font-family: var(--font-data); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); }
+.choice.lead { border-color: var(--sun); }
+.tally-sum { text-align: center; font-weight: 800; color: var(--ink-dim); }
+
+@media (max-width: 420px) {
+  .row { grid-template-columns: repeat(4, 58px); }
+  .slot { width: 58px; height: 58px; }
+  .digit { width: 54px; height: 58px; }
+  .sig-icon { width: 60px; height: 60px; }
+  .key-tile .ico { width: 38px; height: 38px; }
+  .key-tile .eq { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .drone-stage .drone { left: calc(50% - 60px); }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Shared SVG drawings (all original, drawn in code) ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Toucan -->
+    <symbol id="i-toucan" viewBox="0 0 64 64">
+      <path d="M12 52 C8 36 12 18 27 16 C38 15 43 25 41 35 C39 46 31 53 22 57 Z" fill="#1f1f22"/>
+      <path d="M18 54 L12 63 L24 58 Z" fill="#1f1f22"/>
+      <ellipse cx="32" cy="30" rx="8" ry="9" fill="#fff2b8"/>
+      <path d="M35 21 C47 16 59 20 62 29 C53 31 44 31 37 30 Z" fill="#ff8a1f"/>
+      <path d="M37 30 C44 31 53 31 62 29 C58 35 47 37 38 34 Z" fill="#ffd23f"/>
+      <path d="M58 22 C61 24 62 27 62 29 C60 27 58 25 56 24 Z" fill="#e0372f"/>
+      <circle cx="30" cy="24" r="3.6" fill="#47b6ff"/>
+      <circle cx="30" cy="24" r="1.7" fill="#111"/>
+      <path d="M20 40 C24 46 28 48 32 48" stroke="#3a3a40" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <!-- Red-eyed tree frog -->
+    <symbol id="i-frog" viewBox="0 0 64 64">
+      <ellipse cx="13" cy="51" rx="9" ry="5" fill="#2aa83b"/>
+      <ellipse cx="51" cy="51" rx="9" ry="5" fill="#2aa83b"/>
+      <ellipse cx="32" cy="40" rx="21" ry="15" fill="#3ccf4e"/>
+      <ellipse cx="32" cy="46" rx="12" ry="7" fill="#d7f7a0"/>
+      <circle cx="21" cy="24" r="9" fill="#3ccf4e"/>
+      <circle cx="43" cy="24" r="9" fill="#3ccf4e"/>
+      <circle cx="21" cy="23" r="5.6" fill="#ff3b30"/>
+      <circle cx="43" cy="23" r="5.6" fill="#ff3b30"/>
+      <ellipse cx="21" cy="23" rx="1.5" ry="3.6" fill="#111"/>
+      <ellipse cx="43" cy="23" rx="1.5" ry="3.6" fill="#111"/>
+      <path d="M22 36 Q32 42 42 36" stroke="#1d7a2a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <!-- Banana -->
+    <symbol id="i-banana" viewBox="0 0 64 64">
+      <path d="M14 16 C9 38 24 55 49 52 C55 51 57 47 53 45 C34 46 24 35 22 16 Z" fill="#ffd23f" stroke="#c99400" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M18 22 C18 36 28 46 44 48" stroke="#f1b800" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M14 17 L13 9 L21 12 L22 17 Z" fill="#6b4e12"/>
+      <circle cx="54" cy="47" r="2.4" fill="#4a3608"/>
+    </symbol>
+    <!-- Hibiscus flower -->
+    <symbol id="i-flower" viewBox="0 0 64 64">
+      <g fill="#ff5fa2">
+        <ellipse cx="32" cy="16" rx="10" ry="14"/>
+        <ellipse cx="32" cy="16" rx="10" ry="14" transform="rotate(72 32 32)"/>
+        <ellipse cx="32" cy="16" rx="10" ry="14" transform="rotate(144 32 32)"/>
+        <ellipse cx="32" cy="16" rx="10" ry="14" transform="rotate(216 32 32)"/>
+        <ellipse cx="32" cy="16" rx="10" ry="14" transform="rotate(288 32 32)"/>
+      </g>
+      <circle cx="32" cy="32" r="9" fill="#d61f6e"/>
+      <circle cx="32" cy="32" r="4.5" fill="#ffd23f"/>
+    </symbol>
+    <!-- Blue morpho butterfly -->
+    <symbol id="i-butterfly" viewBox="0 0 64 64">
+      <ellipse cx="19" cy="23" rx="15" ry="12" fill="#2f7bff" transform="rotate(-24 19 23)"/>
+      <ellipse cx="45" cy="23" rx="15" ry="12" fill="#2f7bff" transform="rotate(24 45 23)"/>
+      <ellipse cx="22" cy="45" rx="9" ry="11" fill="#1c55c9" transform="rotate(20 22 45)"/>
+      <ellipse cx="42" cy="45" rx="9" ry="11" fill="#1c55c9" transform="rotate(-20 42 45)"/>
+      <circle cx="12" cy="20" r="2.4" fill="#cfe3ff"/>
+      <circle cx="52" cy="20" r="2.4" fill="#cfe3ff"/>
+      <rect x="30" y="16" width="4" height="36" rx="2" fill="#1f1f22"/>
+      <path d="M31 17 Q26 8 22 6 M33 17 Q38 8 42 6" stroke="#1f1f22" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <!-- Paw print (Maple's) -->
+    <symbol id="i-paw" viewBox="0 0 64 64">
+      <g fill="#b5651d">
+        <path d="M32 31 C22 31 13 41 15 50 C17 57 25 55 32 55 C39 55 47 57 49 50 C51 41 42 31 32 31 Z"/>
+        <ellipse cx="13" cy="27" rx="6" ry="7.5" transform="rotate(-20 13 27)"/>
+        <ellipse cx="25" cy="15" rx="6" ry="8"/>
+        <ellipse cx="39" cy="15" rx="6" ry="8"/>
+        <ellipse cx="51" cy="27" rx="6" ry="7.5" transform="rotate(20 51 27)"/>
+      </g>
+    </symbol>
+    <!-- Big jungle leaf for the backdrop -->
+    <symbol id="leaf" viewBox="0 0 100 220">
+      <path d="M50 218 C44 172 6 146 7 92 C8 44 38 12 50 2 C62 12 92 44 93 92 C94 146 56 172 50 218 Z" fill="currentColor"/>
+      <path d="M50 214 L50 10" stroke="rgba(0,0,0,.28)" stroke-width="3" fill="none"/>
+      <path d="M50 60 L22 42 M50 90 L14 72 M50 120 L14 108 M50 150 L22 146 M50 60 L78 42 M50 90 L86 72 M50 120 L86 108 M50 150 L78 146" stroke="rgba(0,0,0,.2)" stroke-width="2.4" fill="none"/>
+    </symbol>
+    <!-- House (research station) -->
+    <symbol id="i-house" viewBox="0 0 64 64">
+      <path d="M8 30 L32 10 L56 30" stroke="#e5763a" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="14" y="28" width="36" height="28" rx="3" fill="#f4ecd2"/>
+      <rect x="27" y="38" width="10" height="18" rx="2" fill="#7a5233"/>
+      <rect x="18" y="34" width="7" height="7" rx="1.5" fill="#5fc3ff"/>
+      <rect x="40" y="34" width="7" height="7" rx="1.5" fill="#5fc3ff"/>
+    </symbol>
+    <!-- Howler monkey, sitting, facing left. Origin = between the feet. -->
+    <g id="howler">
+      <path d="M16 -8 C46 -6 48 -40 31 -46 C22 -49 17 -41 24 -37" stroke="#5c2814" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <ellipse cx="4" cy="-28" rx="19" ry="25" fill="#7a3a1c"/>
+      <ellipse cx="0" cy="-22" rx="10" ry="14" fill="#9a5430"/>
+      <ellipse cx="-8" cy="-5" rx="12" ry="6" fill="#5c2814"/>
+      <ellipse cx="14" cy="-5" rx="12" ry="6" fill="#5c2814"/>
+      <circle cx="-6" cy="-60" r="16" fill="#7a3a1c"/>
+      <path d="M-21 -56 Q-8 -28 7 -54 Z" fill="#5c2814"/>
+      <ellipse cx="-11" cy="-60" rx="9" ry="9" fill="#2e1a12"/>
+      <circle cx="-14" cy="-63" r="2.3" fill="#fff"/><circle cx="-7" cy="-63" r="2.3" fill="#fff"/>
+      <circle cx="-14.6" cy="-63" r="1.2" fill="#111"/><circle cx="-7.6" cy="-63" r="1.2" fill="#111"/>
+      <path d="M-15 -55 q4 3 8 0" stroke="#d98a6a" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    </g>
+  </defs>
+</svg>
+
+<!-- ===== Animated rainforest backdrop ===== -->
+<div class="jungle" aria-hidden="true">
+  <div class="shaft" style="left:12%"></div>
+  <div class="shaft"></div>
+  <div class="vine" style="left:6%"><svg viewBox="0 0 46 260" preserveAspectRatio="none"><path d="M23 0 C10 60 36 120 20 180 C14 210 26 240 22 260" stroke="#2f7a3f" stroke-width="4" fill="none"/><g fill="#3fa457"><ellipse cx="14" cy="50" rx="9" ry="5" transform="rotate(-30 14 50)"/><ellipse cx="32" cy="100" rx="9" ry="5" transform="rotate(30 32 100)"/><ellipse cx="14" cy="160" rx="9" ry="5" transform="rotate(-30 14 160)"/><ellipse cx="30" cy="220" rx="9" ry="5" transform="rotate(30 30 220)"/></g></svg></div>
+  <div class="vine" style="left:24%;height:clamp(90px,16vh,170px)"><svg viewBox="0 0 46 260" preserveAspectRatio="none"><path d="M23 0 C34 70 12 130 24 200 C28 230 20 250 23 260" stroke="#2a6b38" stroke-width="4" fill="none"/><g fill="#4cb862"><ellipse cx="30" cy="70" rx="9" ry="5" transform="rotate(30 30 70)"/><ellipse cx="14" cy="140" rx="9" ry="5" transform="rotate(-30 14 140)"/><ellipse cx="30" cy="210" rx="9" ry="5" transform="rotate(30 30 210)"/></g></svg></div>
+  <div class="vine" style="right:20%"><svg viewBox="0 0 46 260" preserveAspectRatio="none"><path d="M23 0 C12 50 34 110 22 170 C16 210 28 240 23 260" stroke="#2f7a3f" stroke-width="4" fill="none"/><g fill="#3fa457"><ellipse cx="14" cy="40" rx="9" ry="5" transform="rotate(-30 14 40)"/><ellipse cx="32" cy="110" rx="9" ry="5" transform="rotate(30 32 110)"/><ellipse cx="14" cy="190" rx="9" ry="5" transform="rotate(-30 14 190)"/></g></svg></div>
+  <div class="vine" style="right:5%;height:clamp(120px,22vh,220px)"><svg viewBox="0 0 46 260" preserveAspectRatio="none"><path d="M23 0 C36 60 10 130 24 190 C30 220 20 245 23 260" stroke="#2a6b38" stroke-width="4" fill="none"/><g fill="#4cb862"><ellipse cx="30" cy="60" rx="9" ry="5" transform="rotate(30 30 60)"/><ellipse cx="14" cy="130" rx="9" ry="5" transform="rotate(-30 14 130)"/><ellipse cx="30" cy="200" rx="9" ry="5" transform="rotate(30 30 200)"/></g></svg></div>
+  <div class="leaf" style="left:-60px;bottom:-40px;transform:rotate(28deg);color:#1c5c37"><svg viewBox="0 0 100 220"><use href="#leaf"/></svg></div>
+  <div class="leaf" style="left:2%;bottom:-70px;transform:rotate(-8deg);color:#2a7a45"><svg viewBox="0 0 100 220" style="animation-delay:-2s"><use href="#leaf"/></svg></div>
+  <div class="leaf" style="right:-50px;bottom:-50px;transform:rotate(-30deg);color:#1f6b40"><svg viewBox="0 0 100 220" style="animation-delay:-3s"><use href="#leaf"/></svg></div>
+  <div class="leaf" style="right:4%;bottom:-90px;transform:rotate(10deg);color:#2f8a4e"><svg viewBox="0 0 100 220" style="animation-delay:-1s"><use href="#leaf"/></svg></div>
+  <div class="leaf" style="left:-70px;top:22%;transform:rotate(70deg);color:#164d2f"><svg viewBox="0 0 100 220" style="animation-delay:-4s"><use href="#leaf"/></svg></div>
+  <div class="leaf" style="right:-70px;top:38%;transform:rotate(-72deg);color:#185432"><svg viewBox="0 0 100 220" style="animation-delay:-2.5s"><use href="#leaf"/></svg></div>
+  <div id="fireflies"></div>
+</div>
+
+<div class="app">
+  <header class="hud">
+    <span class="hud-brand">Project Charlie</span>
+    <span class="hud-clock"><b id="clock">05:00:00</b> since Maple went missing</span>
+    <button class="hud-btn" id="btn-mute" type="button" aria-pressed="false">Sound: on</button>
+  </header>
+  <nav class="steps" aria-label="Mission progress">
+    <span data-step="cipher">1 · Radio channel</span>
+    <span data-step="lock">2 · Camera lock</span>
+    <span data-step="feed">3 · Live feed</span>
+  </nav>
+
+  <!-- ===== Scene: title / mission brief ===== -->
+  <section class="scene" data-scene="title">
+    <div class="panel brief">
+      <div class="panel-tag">Intelligence office · Uplink desk</div>
+      <div class="drone-stage" aria-hidden="true"><div class="drone" data-drone></div></div>
+      <h1>Drone Code</h1>
+      <p class="lede">Maple has been missing in the Amazon for 5 hours. Our drone is flying over the flooded forest right now, but its camera feed is locked.</p>
+      <p class="how">Connect the intelligence office to the drone so we can finally see Maple live. This one is all hands on deck!</p>
+      <ol class="mission">
+        <li><div><b>Find the radio channel</b><span>Use the decoder key to turn jungle pictures into numbers.</span></div></li>
+        <li><div><b>Crack the camera lock</b><span>Guess the 4 secret pictures before the drone's battery runs out.</span></div></li>
+      </ol>
+      <button class="btn btn-go btn-wide" id="btn-start" type="button">Start mission</button>
+    </div>
+  </section>
+
+  <!-- ===== Scene: step 1, cipher ===== -->
+  <section class="scene" data-scene="cipher" hidden>
+    <div class="panel">
+      <div class="panel-tag">Step 1 of 2 · Radio channel</div>
+      <h2 tabindex="-1">Decode the drone's signal</h2>
+      <p class="how">The drone is sending its radio channel in jungle code. Find each picture in the decoder key, then type its number.</p>
+      <div class="label">Decoder key</div>
+      <div class="key-grid" id="key-grid"></div>
+      <div class="label">Incoming signal</div>
+      <div class="signal" id="signal"></div>
+      <div class="status" id="cipher-status" aria-live="polite"></div>
+      <div class="keypad" id="keypad"></div>
+      <button class="btn btn-go btn-wide" id="btn-to-lock" type="button" hidden>Next: crack the camera lock</button>
+    </div>
+  </section>
+
+  <!-- ===== Scene: step 2, camera lock (code breaker) ===== -->
+  <section class="scene" data-scene="lock" hidden>
+    <div class="panel">
+      <div class="panel-tag">Step 2 of 2 · Camera lock</div>
+      <h2 tabindex="-1">Crack the camera lock</h2>
+      <p class="how">The camera code is 4 jungle pictures, each used once. Pick 4 pictures, then press Send. The colours tell you how close you are.</p>
+      <ul class="legend">
+        <li><span class="mk right">✓</span>Right spot</li>
+        <li><span class="mk close">↔</span>In the code, wrong spot</li>
+        <li><span class="mk miss">✕</span>Not in the code</li>
+      </ul>
+      <div class="battery-row">
+        <span>Drone battery</span>
+        <div class="battery" id="battery" aria-hidden="true"></div>
+        <span class="battery-text" id="battery-text"></span>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="status" id="lock-status" aria-live="polite"></div>
+      <div id="lock-controls" style="display:flex;flex-direction:column;gap:12px">
+        <div class="picker" id="picker"></div>
+        <div class="actions">
+          <button class="btn btn-ghost" id="btn-undo" type="button">Undo</button>
+          <button class="btn btn-ghost" id="btn-hint" type="button">Get a clue</button>
+          <button class="btn btn-go" id="btn-send" type="button">Send code</button>
+        </div>
+        <p class="hint-note" id="hint-note"></p>
+      </div>
+      <div class="uplink" id="uplink" hidden>
+        <div class="drone" data-drone></div>
+        <h3 id="uplink-title">Camera unlocked!</h3>
+        <div class="bar" id="uplink-bar"><i></i></div>
+        <div class="uplink-text" id="uplink-text">Connecting to the intelligence office…</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Scene: live feed reveal ===== -->
+  <section class="scene" data-scene="feed" hidden>
+    <div class="panel">
+      <div class="panel-tag live">Live · Drone cam 01</div>
+      <div class="feed">
+        <svg viewBox="0 0 640 400" role="img" aria-label="Drone camera view: Maple the dog stands on a log in the flooded forest. One howler monkey offers Maple a banana, and another points the way from a branch above.">
+          <defs>
+            <linearGradient id="f-sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#1b5238"/><stop offset=".65" stop-color="#3f875a"/><stop offset="1" stop-color="#78b382"/>
+            </linearGradient>
+            <linearGradient id="f-water" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3f9a8c"/><stop offset="1" stop-color="#174a4c"/>
+            </linearGradient>
+          </defs>
+          <g class="cam">
+            <rect x="-20" y="-20" width="680" height="440" fill="url(#f-sky)"/>
+            <g fill="#2a6a45" opacity=".9">
+              <circle cx="40" cy="30" r="90"/><circle cx="180" cy="0" r="95"/><circle cx="330" cy="20" r="85"/><circle cx="470" cy="-10" r="100"/><circle cx="630" cy="40" r="95"/>
+            </g>
+            <g fill="#1f5638">
+              <circle cx="110" cy="-10" r="70"/><circle cx="400" cy="-20" r="70"/><circle cx="560" cy="-10" r="60"/>
+            </g>
+            <g fill="#4d6b4a" opacity=".8">
+              <rect x="88" y="40" width="14" height="240"/><rect x="318" y="50" width="11" height="230"/><rect x="505" y="40" width="16" height="240"/>
+            </g>
+            <g fill="#4a3424">
+              <rect x="10" y="-20" width="38" height="300"/><rect x="594" y="-20" width="40" height="300"/>
+            </g>
+            <rect x="-20" y="272" width="680" height="150" fill="url(#f-water)"/>
+            <g fill="#4a3424" opacity=".3">
+              <rect x="10" y="272" width="38" height="80"/><rect x="594" y="272" width="40" height="80"/><rect x="88" y="272" width="14" height="50"/><rect x="505" y="272" width="16" height="50"/>
+            </g>
+            <!-- log + its reflection -->
+            <rect x="120" y="292" width="360" height="22" rx="11" fill="#7a5233" opacity=".25"/>
+            <rect x="120" y="262" width="360" height="28" rx="14" fill="#7a5233"/>
+            <path d="M140 270 H300 M330 280 H450" stroke="#5c3b22" stroke-width="3" stroke-linecap="round"/>
+            <ellipse cx="472" cy="276" rx="9" ry="14" fill="#a8794d"/>
+            <ellipse cx="472" cy="276" rx="4" ry="7" fill="none" stroke="#7a5233" stroke-width="2"/>
+            <g fill="none" stroke="#c6efe4" stroke-opacity=".6" stroke-width="2">
+              <ellipse class="rip" cx="90" cy="335" rx="34" ry="6"/>
+              <ellipse class="rip" cx="540" cy="350" rx="40" ry="7"/>
+              <ellipse class="rip" cx="300" cy="370" rx="44" ry="7"/>
+              <ellipse class="rip" cx="200" cy="330" rx="26" ry="5"/>
+            </g>
+            <!-- branch overhead -->
+            <path d="M660 116 C580 110 520 124 430 118" stroke="#5a3d26" stroke-width="13" stroke-linecap="round" fill="none"/>
+            <g fill="#3a9a52"><ellipse cx="450" cy="108" rx="16" ry="7" transform="rotate(-20 450 108)"/><ellipse cx="600" cy="104" rx="18" ry="7" transform="rotate(15 600 104)"/><ellipse cx="480" cy="126" rx="14" ry="6" transform="rotate(25 480 126)"/></g>
+            <!-- shared fruit on the log -->
+            <g>
+              <circle cx="316" cy="257" r="6" fill="#c2265a"/><circle cx="327" cy="259" r="5.5" fill="#7b2a8c"/><circle cx="322" cy="250" r="5" fill="#e0372f"/>
+              <use href="#i-banana" x="330" y="236" width="26" height="26"/>
+            </g>
+            <!-- Maple -->
+            <g transform="translate(220,264)">
+              <g class="wag"><path d="M-44 -50 Q-66 -64 -60 -90" stroke="#c4652a" stroke-width="9" fill="none" stroke-linecap="round"/></g>
+              <rect x="-40" y="-34" width="11" height="34" rx="5" fill="#9c4c1d"/>
+              <rect x="-24" y="-34" width="11" height="34" rx="5" fill="#b65a24"/>
+              <rect x="16" y="-34" width="11" height="34" rx="5" fill="#9c4c1d"/>
+              <rect x="31" y="-34" width="11" height="34" rx="5" fill="#b65a24"/>
+              <ellipse cx="0" cy="-44" rx="48" ry="21" fill="#c4652a"/>
+              <ellipse cx="4" cy="-33" rx="30" ry="8" fill="#e8a76b"/>
+              <ellipse cx="34" cy="-58" rx="13" ry="18" fill="#c4652a" transform="rotate(25 34 -58)"/>
+              <g transform="translate(44,-76)">
+                <g class="bob">
+                  <circle r="20" fill="#c4652a"/>
+                  <ellipse cx="17" cy="7" rx="15" ry="10" fill="#e8a76b"/>
+                  <ellipse cx="30" cy="3" rx="5.5" ry="4.5" fill="#2a1a10"/>
+                  <circle cx="6" cy="-6" r="3.4" fill="#2a1a10"/><circle cx="7.2" cy="-7.2" r="1.1" fill="#fff"/>
+                  <path d="M18 15 Q24 19 30 13" stroke="#2a1a10" stroke-width="2" fill="none" stroke-linecap="round"/>
+                  <path d="M23 16 q1 9 6 7 q2 -3 0 -8 z" fill="#ff7a8a"/>
+                  <path d="M-10 -16 Q-28 -6 -18 20 Q-6 12 -2 -12 Z" fill="#8a3e14"/>
+                </g>
+              </g>
+            </g>
+            <!-- Monkey 1: sharing a banana with Maple -->
+            <g transform="translate(410,264)">
+              <use href="#howler"/>
+              <g class="offer">
+                <path d="M-4 -38 Q-26 -36 -38 -46" stroke="#7a3a1c" stroke-width="8" fill="none" stroke-linecap="round"/>
+                <use href="#i-banana" x="-62" y="-66" width="28" height="28"/>
+              </g>
+            </g>
+            <!-- Monkey 2: on the branch, pointing the way -->
+            <path d="M532 112 C540 146 524 164 538 182 C548 192 558 182 552 172" stroke="#5c2814" stroke-width="6" fill="none" stroke-linecap="round"/>
+            <g transform="translate(520,114) scale(-1,1)">
+              <g class="swing">
+                <use href="#howler"/>
+                <path d="M-4 -40 Q-24 -52 -44 -54" stroke="#7a3a1c" stroke-width="7" fill="none" stroke-linecap="round"/>
+              </g>
+            </g>
+            <!-- rain -->
+            <g class="rain" stroke="#dff5ec" stroke-opacity=".35" stroke-width="1.6" stroke-linecap="round">
+              <path d="M60 20 l-6 16 M150 80 l-6 16 M240 30 l-6 16 M360 120 l-6 16 M450 60 l-6 16 M560 200 l-6 16 M120 200 l-6 16 M300 180 l-6 16 M620 110 l-6 16 M200 140 l-6 16 M400 230 l-6 16 M520 20 l-6 16 M30 260 l-6 16 M590 300 l-6 16 M260 330 l-6 16"/>
+            </g>
+            <!-- foreground leaves -->
+            <g fill="#0f3a24">
+              <path d="M-20 420 C10 340 60 330 90 360 C70 380 30 400 -20 420 Z"/>
+              <path d="M660 420 C630 330 570 330 540 370 C570 390 610 400 660 420 Z"/>
+            </g>
+          </g>
+        </svg>
+        <div class="feed-vignette"></div>
+        <div class="feed-hud" aria-hidden="true">
+          <span class="fh-tl rec">REC · CAM 01</span>
+          <span class="fh-tr">ALT 32 m<br>SIG ▮▮▮▮</span>
+          <span class="fh-bl">S 3°07′ W 60°01′</span>
+          <span class="fh-br" id="feed-time">T+05:00:00</span>
+          <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
+        </div>
+      </div>
+      <h2 tabindex="-1">We found <span class="found">Maple!</span></h2>
+      <p class="lede">The drone is live, and Maple is safe with a troop of howler monkeys.</p>
+      <p class="how">They seem to be playing and sharing food, and the monkeys are helping Maple find a way through the waterlogged forest.</p>
+      <button class="btn btn-go btn-wide" id="btn-debate" type="button">Group decision</button>
+    </div>
+  </section>
+
+  <!-- ===== Scene: group decision ===== -->
+  <section class="scene" data-scene="debate" hidden>
+    <div class="panel">
+      <div class="panel-tag">Group decision · No right answer</div>
+      <h2 tabindex="-1">What should we do for Maple?</h2>
+      <p class="how">Talk it over as a team. Both choices have good reasons. When you're ready, count everyone's votes.</p>
+      <div class="choices">
+        <article class="choice" data-choice="stay">
+          <svg class="choice-art" viewBox="0 0 64 64" aria-hidden="true"><use href="#i-paw"/></svg>
+          <h3>Stay with the monkeys</h3>
+          <p>Give Maple a new tracking collar and let Maple live with the howler monkeys.</p>
+          <ul>
+            <li>Scientists could learn how different animals become friends.</li>
+            <li>Maple looks happy with the troop.</li>
+          </ul>
+          <div class="tally">
+            <button class="tally-btn" type="button" data-vote="stay" data-delta="-1" aria-label="Remove a vote for Stay with the monkeys">−</button>
+            <div class="tally-count"><span id="votes-stay">0</span><small>votes</small></div>
+            <button class="tally-btn" type="button" data-vote="stay" data-delta="1" aria-label="Add a vote for Stay with the monkeys">+</button>
+          </div>
+        </article>
+        <article class="choice" data-choice="home">
+          <svg class="choice-art" viewBox="0 0 64 64" aria-hidden="true"><use href="#i-house"/></svg>
+          <h3>Come home</h3>
+          <p>Bring Maple back to the research station.</p>
+          <ul>
+            <li>A flooded forest can be a risky place for a dog.</li>
+            <li>The people at the station miss Maple.</li>
+          </ul>
+          <div class="tally">
+            <button class="tally-btn" type="button" data-vote="home" data-delta="-1" aria-label="Remove a vote for Come home">−</button>
+            <div class="tally-count"><span id="votes-home">0</span><small>votes</small></div>
+            <button class="tally-btn" type="button" data-vote="home" data-delta="1" aria-label="Add a vote for Come home">+</button>
+          </div>
+        </article>
+      </div>
+      <p class="tally-sum" id="tally-sum" aria-live="polite">No votes yet.</p>
+      <button class="btn btn-ghost btn-wide" id="btn-again" type="button">Play again</button>
+    </div>
+  </section>
+</div>
+
+<!-- ===== Overlay: battery empty ===== -->
+<div class="overlay" id="overlay-lose" hidden role="dialog" aria-modal="true" aria-labelledby="lose-title">
+  <div class="panel">
+    <div class="panel-tag">Battery empty</div>
+    <h2 id="lose-title">The drone flew home to recharge</h2>
+    <p class="how">The secret code was:</p>
+    <div class="code-reveal" id="lose-code"></div>
+    <p class="how">Good news: it's charged up and back in the air with a brand new code.</p>
+    <button class="btn btn-go btn-wide" id="btn-retry" type="button">Try again</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ================= CONFIG: tuning values live here =================
+  const CONFIG = {
+    SYMBOLS: ['toucan', 'frog', 'banana', 'flower', 'butterfly', 'paw'],
+    NAMES: { toucan: 'Toucan', frog: 'Frog', banana: 'Banana', flower: 'Flower', butterfly: 'Butterfly', paw: 'Paw print' },
+    CHANNEL_LENGTH: 3,     // pictures in the step 1 radio signal
+    CODE_LENGTH: 4,        // pictures in the step 2 camera code (no repeats)
+    BATTERY: 8,            // guesses allowed in step 2
+    HINT_COST: 1,          // battery used by "Scan for a clue"
+    MAX_HINTS: 2,          // scans allowed per code
+    HOURS_MISSING: 5,      // clock starts at this many hours
+    REVEAL_STAGGER_MS: 160,// delay between tile flips
+    WRONG_CLEAR_MS: 900,   // how long wrong numbers stay red in step 1
+    UPLINK_MS: 2600,       // length of the "connecting" bar
+  };
+  const MARK_GLYPH = { right: '✓', close: '↔', miss: '✕' };
+  const MARK_TEXT = { right: 'right spot', close: 'in the code, wrong spot', miss: 'not in the code' };
+
+  // ================= Helpers =================
+  const $ = (sel) => document.querySelector(sel);
+  const shuffle = (arr) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const icon = (name) => `<svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Drone drawing, inlined (not <use>) so its rotors can animate.
+  const DRONE_SVG = `<svg viewBox="0 0 120 64" aria-hidden="true">
+    <rect x="17" y="12" width="6" height="12" rx="2" fill="#9fb4aa"/><rect x="97" y="12" width="6" height="12" rx="2" fill="#9fb4aa"/>
+    <path d="M20 24 L100 24" stroke="#cfdcd5" stroke-width="5" stroke-linecap="round"/>
+    <ellipse class="rotor" cx="20" cy="11" rx="19" ry="3.2" fill="rgba(225,245,235,.75)"/>
+    <ellipse class="rotor" cx="100" cy="11" rx="19" ry="3.2" fill="rgba(225,245,235,.75)"/>
+    <rect x="36" y="20" width="48" height="22" rx="9" fill="#ffc93c"/>
+    <rect x="42" y="25" width="20" height="5" rx="2.5" fill="#2a1d00" opacity=".35"/>
+    <circle class="blink" cx="77" cy="27" r="2.6" fill="#ff3b30"/>
+    <path d="M44 42 L40 52 M76 42 L80 52" stroke="#9fb4aa" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="60" cy="47" r="7.5" fill="#1c2b24"/><circle cx="60" cy="47" r="3.4" fill="#5fd0ff"/>
+  </svg>`;
+
+  // ================= Sound (Web Audio, starts after first tap) =================
+  const Sound = {
+    ctx: null,
+    muted: false,
+    unlock() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) { try { this.ctx = new AC(); } catch (e) { this.ctx = null; } }
+      }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, dur, { type = 'sine', vol = 0.07, delay = 0 } = {}) {
+      if (this.muted || !this.ctx) return;
+      const t = this.ctx.currentTime + delay;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    },
+    tap()  { this.tone(720, 0.07, { type: 'triangle' }); },
+    tick(k) { this.tone(440 + k * 70, 0.06, { type: 'square', vol: 0.03 }); },
+    good() { [523, 659, 784].forEach((f, i) => this.tone(f, 0.16, { type: 'triangle', delay: i * 0.09 })); },
+    bad()  { this.tone(196, 0.22, { type: 'sawtooth', vol: 0.04 }); this.tone(147, 0.26, { type: 'sawtooth', vol: 0.04, delay: 0.12 }); },
+    scan() { [880, 990, 880, 1180].forEach((f, i) => this.tone(f, 0.08, { type: 'sine', delay: i * 0.07 })); },
+    win()  { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.22, { type: 'triangle', delay: i * 0.11 })); },
+  };
+
+  // ================= Game state (one object) =================
+  const state = {
+    scene: 'title',          // title | cipher | lock | feed | debate
+    startedAt: Date.now(),
+    cipher: null,            // { key, message, entry, locked, wrong, busy, solved }
+    lock: null,              // { code, guesses, current, hinted, battery, hintsUsed, busy, solved }
+    votes: { stay: 0, home: 0 },
+  };
+  window.__getState = () => state; // test hook
+
+  // ================= Scenes =================
+  const STEP_ORDER = ['cipher', 'lock', 'feed'];
+  function showScene(name) {
+    state.scene = name;
+    document.querySelectorAll('.scene').forEach((s) => { s.hidden = s.dataset.scene !== name; });
+    // progress chips: done / now
+    const idx = STEP_ORDER.indexOf(name === 'debate' ? 'feed' : name);
+    document.querySelectorAll('.steps span').forEach((chip) => {
+      const i = STEP_ORDER.indexOf(chip.dataset.step);
+      chip.classList.toggle('done', idx > i || name === 'debate');
+      chip.classList.toggle('now', idx === i && name !== 'debate');
+    });
+    window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+    const heading = document.querySelector(`.scene[data-scene="${name}"] h2`);
+    if (heading) heading.focus({ preventScroll: true });
+  }
+
+  // ================= Step 1: cipher =================
+  function newCipher() {
+    const n = CONFIG.CHANNEL_LENGTH;
+    const digits = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, CONFIG.SYMBOLS.length);
+    const key = {};
+    CONFIG.SYMBOLS.forEach((s, i) => { key[s] = digits[i]; });
+    state.cipher = {
+      key,
+      message: shuffle(CONFIG.SYMBOLS).slice(0, n),
+      entry: Array(n).fill(null),
+      locked: Array(n).fill(false),
+      wrong: [],
+      busy: false,
+      solved: false,
+    };
+    $('#btn-to-lock').hidden = true;
+    $('#keypad').hidden = false;
+    setStatus('#cipher-status', '');
+    renderCipher();
+  }
+
+  function renderCipher() {
+    const C = state.cipher;
+    $('#key-grid').innerHTML = CONFIG.SYMBOLS.map((s) =>
+      `<div class="key-tile" aria-label="${CONFIG.NAMES[s]} equals ${C.key[s]}">${icon(s)}<span class="eq">${C.key[s]}</span></div>`
+    ).join('');
+    const nextIdx = C.entry.indexOf(null);
+    $('#signal').innerHTML = C.message.map((s, i) => {
+      const v = C.entry[i];
+      let cls = 'digit';
+      if (C.locked[i]) cls += ' ok';
+      else if (C.wrong.includes(i)) cls += ' bad';
+      else if (v !== null) cls += ' filled';
+      else if (i === nextIdx && !C.busy) cls += ' next';
+      return `<div class="sig-cell"><div class="sig-icon" aria-label="${CONFIG.NAMES[s]}">${icon(s)}</div>
+              <div class="${cls}" aria-label="Number ${i + 1}: ${v ?? 'empty'}">${v ?? ''}</div></div>`;
+    }).join('');
+  }
+
+  function cipherInput(d) {
+    const C = state.cipher;
+    if (C.busy || C.solved) return;
+    const i = C.entry.indexOf(null);
+    if (i === -1) return;
+    C.entry[i] = d;
+    Sound.tap();
+    renderCipher();
+    if (!C.entry.includes(null)) checkCipher();
+  }
+
+  function cipherDelete() {
+    const C = state.cipher;
+    if (C.busy || C.solved) return;
+    for (let i = C.entry.length - 1; i >= 0; i--) {
+      if (C.entry[i] !== null && !C.locked[i]) { C.entry[i] = null; Sound.tick(0); renderCipher(); return; }
+    }
+  }
+
+  function checkCipher() {
+    const C = state.cipher;
+    C.wrong = [];
+    C.message.forEach((s, i) => {
+      if (C.entry[i] === C.key[s]) C.locked[i] = true;
+      else C.wrong.push(i);
+    });
+    if (C.wrong.length === 0) {
+      C.solved = true;
+      renderCipher();
+      Sound.good();
+      setStatus('#cipher-status', `Channel ${C.entry.join('-')} found! The drone's radio is connected.`, 'good');
+      $('#keypad').hidden = true;
+      $('#btn-to-lock').hidden = false;
+      $('#btn-to-lock').focus({ preventScroll: true });
+      return;
+    }
+    // Some numbers are wrong: show them red, then clear just those.
+    C.busy = true;
+    renderCipher();
+    Sound.bad();
+    setStatus('#cipher-status', 'Not quite. Check the red ones against the decoder key.', 'warn');
+    setTimeout(() => {
+      C.wrong.forEach((i) => { C.entry[i] = null; });
+      C.wrong = [];
+      C.busy = false;
+      renderCipher();
+    }, CONFIG.WRONG_CLEAR_MS);
+  }
+
+  function buildKeypad() {
+    const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) =>
+      `<button class="kp" type="button" data-digit="${d}" aria-label="${d}">${d}</button>`
+    );
+    keys.push('<button class="kp del" type="button" data-del aria-label="Delete">⌫</button>');
+    $('#keypad').innerHTML = keys.join('');
+  }
+
+  // ================= Step 2: camera lock (code breaker) =================
+  function newLock() {
+    state.lock = {
+      code: shuffle(CONFIG.SYMBOLS).slice(0, CONFIG.CODE_LENGTH),
+      guesses: [],                 // [{ symbols:[], marks:[] }]
+      current: Array(CONFIG.CODE_LENGTH).fill(null),
+      hinted: {},                  // slot index -> symbol revealed by a scan
+      battery: CONFIG.BATTERY,
+      hintsUsed: 0,
+      busy: false,
+      solved: false,
+    };
+    $('#lock-controls').hidden = false;
+    $('#uplink').hidden = true;
+    $('#uplink-bar').classList.remove('go');
+    setStatus('#lock-status', '');
+    renderLock();
+  }
+
+  /** Score one guess. The code has no repeats, so each picture is simply right / close / miss. */
+  function scoreGuess(guess, code) {
+    return guess.map((s, i) => (s === code[i] ? 'right' : code.includes(s) ? 'close' : 'miss'));
+  }
+
+  /** What the team has learned about each picture so far: 'in' the code, 'out', or unknown. */
+  function knowledge() {
+    const k = {};
+    state.lock.guesses.forEach((g) => g.symbols.forEach((s, i) => {
+      if (g.marks[i] === 'miss') k[s] = 'out';
+      else k[s] = 'in';
+    }));
+    return k;
+  }
+
+  function rowHTML(symbols, { marks = null, interactive = false, hinted = {}, cls = '' } = {}) {
+    const nextIdx = interactive ? symbols.indexOf(null) : -1;
+    const cells = symbols.map((s, i) => {
+      const m = marks ? marks[i] : null;
+      const isHint = interactive && hinted[i] !== undefined;
+      const label = s ? `${CONFIG.NAMES[s]}${m ? ': ' + MARK_TEXT[m] : ''}${isHint ? ' (from scan)' : interactive ? ', tap to remove' : ''}` : `Empty spot ${i + 1}`;
+      const classes = ['slot', m || '', s ? 'filled' : 'empty', isHint ? 'hinted' : '', i === nextIdx ? 'next' : ''].join(' ');
+      const inner = s ? icon(s) : `<span class="slot-num">${i + 1}</span>`;
+      const badge = m ? `<span class="badge" aria-hidden="true">${MARK_GLYPH[m]}</span>` : isHint ? '<span class="badge hint" aria-hidden="true">★</span>' : '';
+      const style = `style="--d:${i * CONFIG.REVEAL_STAGGER_MS}ms"`;
+      return interactive
+        ? `<button type="button" class="${classes}" data-slot="${i}" ${style} aria-label="${label}">${inner}${badge}</button>`
+        : `<div class="${classes}" ${style} role="img" aria-label="${label}">${inner}${badge}</div>`;
+    }).join('');
+    return `<div class="row ${cls}">${cells}</div>`;
+  }
+
+  function renderLock({ revealLast = false, win = false } = {}) {
+    const L = state.lock;
+    // Board: past guesses, then the row being built.
+    const rows = L.guesses.map((g, gi) => {
+      const last = gi === L.guesses.length - 1;
+      const cls = last && win ? 'reveal win' : last && revealLast ? 'reveal' : '';
+      return rowHTML(g.symbols, { marks: g.marks, cls });
+    });
+    if (!L.busy && !L.solved) rows.push(rowHTML(L.current, { interactive: true, hinted: L.hinted, cls: 'current' }));
+    $('#board').innerHTML = rows.join('');
+
+    // Battery
+    const bat = $('#battery');
+    bat.innerHTML = Array.from({ length: CONFIG.BATTERY }, (_, i) => `<i class="${i < L.battery ? 'on' : ''}"></i>`).join('');
+    const low = L.battery <= 2;
+    bat.classList.toggle('low', low);
+    const bt = $('#battery-text');
+    bt.textContent = `${L.battery} ${L.battery === 1 ? 'try' : 'tries'} left`;
+    bt.classList.toggle('low', low);
+
+    // Picture picker
+    const k = knowledge();
+    $('#picker').innerHTML = CONFIG.SYMBOLS.map((s, idx) => {
+      const used = L.current.includes(s);
+      const st = k[s] || '';
+      const note = st === 'out' ? ' (not in the code)' : st === 'in' ? ' (in the code)' : '';
+      return `<button type="button" class="pick ${st}" data-sym="${s}" ${used || L.busy ? 'disabled' : ''} aria-label="${CONFIG.NAMES[s]}${note}">${icon(s)}<span class="pick-key" aria-hidden="true">${idx + 1}</span>${st === 'out' ? '<span class="badge" aria-hidden="true">✕</span>' : ''}</button>`;
+    }).join('');
+
+    // Buttons
+    const full = !L.current.includes(null);
+    $('#btn-send').disabled = !full || L.busy;
+    $('#btn-undo').disabled = L.busy || L.current.every((s, i) => s === null || L.hinted[i] !== undefined);
+    const hintsLeft = CONFIG.MAX_HINTS - L.hintsUsed;
+    const hintBtn = $('#btn-hint');
+    hintBtn.disabled = L.busy || hintsLeft <= 0 || L.battery <= CONFIG.HINT_COST;
+    hintBtn.textContent = hintsLeft > 0 ? 'Get a clue' : 'No clues left';
+    $('#hint-note').textContent = hintsLeft > 0
+      ? `Stuck? A clue shows one picture in its right spot. Each clue uses 1 battery bar (${hintsLeft} left).`
+      : 'You have used all your clues for this code.';
+  }
+
+  function pickSymbol(s) {
+    const L = state.lock;
+    if (L.busy || L.solved || L.current.includes(s)) return;
+    const i = L.current.indexOf(null);
+    if (i === -1) return;
+    L.current[i] = s;
+    Sound.tap();
+    renderLock();
+  }
+
+  function clearSlot(i) {
+    const L = state.lock;
+    if (L.busy || L.hinted[i] !== undefined || L.current[i] === null) return;
+    L.current[i] = null;
+    Sound.tick(0);
+    renderLock();
+  }
+
+  function undo() {
+    const L = state.lock;
+    for (let i = L.current.length - 1; i >= 0; i--) {
+      if (L.current[i] !== null && L.hinted[i] === undefined) { clearSlot(i); return; }
+    }
+  }
+
+  /** A new empty row, with any scanned clues already in place. */
+  function freshRow() {
+    const row = Array(CONFIG.CODE_LENGTH).fill(null);
+    Object.entries(state.lock.hinted).forEach(([i, s]) => { row[+i] = s; });
+    return row;
+  }
+
+  function sendGuess() {
+    const L = state.lock;
+    if (L.busy || L.solved || L.current.includes(null)) return;
+    const symbols = [...L.current];
+    const marks = scoreGuess(symbols, L.code);
+    L.guesses.push({ symbols, marks });
+    L.battery -= 1;
+    L.busy = true;
+    const solved = marks.every((m) => m === 'right');
+    renderLock({ revealLast: true, win: solved });
+    setStatus('#lock-status', '');
+    // a little tick as each tile flips
+    marks.forEach((m, i) => setTimeout(() => Sound.tick(i), i * CONFIG.REVEAL_STAGGER_MS + 200));
+    const revealMs = reducedMotion() ? 50 : CONFIG.CODE_LENGTH * CONFIG.REVEAL_STAGGER_MS + 450;
+    setTimeout(() => afterReveal(marks, solved), revealMs);
+  }
+
+  function afterReveal(marks, solved) {
+    const L = state.lock;
+    if (solved) { L.solved = true; startUplink(); return; }
+    if (L.battery <= 0) { showLose(); return; }
+    L.busy = false;
+    L.current = freshRow();
+    const rights = marks.filter((m) => m === 'right').length;
+    const closes = marks.filter((m) => m === 'close').length;
+    if (rights + closes === 0) { Sound.bad(); setStatus('#lock-status', 'None of those are in the code. Try different pictures!', 'warn'); }
+    else { Sound.good(); setStatus('#lock-status', `${rights} in the right spot, ${closes} in the wrong spot. Keep going!`); }
+    renderLock();
+  }
+
+  function useHint() {
+    const L = state.lock;
+    if (L.busy || L.solved || L.hintsUsed >= CONFIG.MAX_HINTS || L.battery <= CONFIG.HINT_COST) return;
+    // Prefer a spot the team hasn't already got right.
+    const solvedSpots = new Set();
+    L.guesses.forEach((g) => g.marks.forEach((m, i) => { if (m === 'right') solvedSpots.add(i); }));
+    const open = [...Array(CONFIG.CODE_LENGTH).keys()].filter((i) => L.hinted[i] === undefined);
+    const best = open.filter((i) => !solvedSpots.has(i));
+    const pool = best.length ? best : open;
+    if (!pool.length) return;
+    const i = pool[Math.floor(Math.random() * pool.length)];
+    const s = L.code[i];
+    L.hinted[i] = s;
+    L.hintsUsed += 1;
+    L.battery -= CONFIG.HINT_COST;
+    // put the clue in place, moving it out of any other spot
+    L.current = L.current.map((x, j) => (x === s && j !== i ? null : x));
+    L.current[i] = s;
+    Sound.scan();
+    setStatus('#lock-status', `Scanner: the ${CONFIG.NAMES[s].toLowerCase()} goes in spot ${i + 1}.`, 'good');
+    renderLock();
+  }
+
+  function showLose() {
+    $('#lose-code').innerHTML = state.lock.code.map((s) => icon(s)).join('');
+    $('#overlay-lose').hidden = false;
+    Sound.bad();
+    $('#btn-retry').focus();
+  }
+
+  function startUplink() {
+    Sound.win();
+    setStatus('#lock-status', 'All four match!', 'good');
+    renderLock({ win: true });
+    $('#lock-controls').hidden = true;
+    const up = $('#uplink');
+    up.hidden = false;
+    const bar = $('#uplink-bar');
+    bar.style.setProperty('--ms', `${CONFIG.UPLINK_MS}ms`);
+    bar.classList.remove('go');
+    void bar.offsetWidth; // restart the transition
+    bar.classList.add('go');
+    up.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+    const text = $('#uplink-text');
+    text.textContent = 'Connecting to the intelligence office…';
+    setTimeout(() => { text.textContent = 'Opening the live camera feed…'; }, CONFIG.UPLINK_MS * 0.5);
+    setTimeout(() => { if (state.scene === 'lock') showScene('feed'); }, CONFIG.UPLINK_MS + 400);
+  }
+
+  // ================= Group decision =================
+  function renderVotes() {
+    const { stay, home } = state.votes;
+    $('#votes-stay').textContent = stay;
+    $('#votes-home').textContent = home;
+    document.querySelector('[data-choice="stay"]').classList.toggle('lead', stay > home);
+    document.querySelector('[data-choice="home"]').classList.toggle('lead', home > stay);
+    const total = stay + home;
+    $('#tally-sum').textContent = total === 0 ? 'No votes yet.'
+      : stay === home ? `${total} votes. It's a tie! Talk it over some more.`
+      : `${total} votes. Most of the team says: ${stay > home ? 'stay with the monkeys' : 'come home'}.`;
+  }
+
+  // ================= Shared UI =================
+  function setStatus(sel, text, tone = '') {
+    const el = $(sel);
+    el.textContent = text;
+    el.className = `status ${tone}`;
+  }
+
+  function tickClock() {
+    const secs = CONFIG.HOURS_MISSING * 3600 + Math.floor((Date.now() - state.startedAt) / 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    const str = `${pad(Math.floor(secs / 3600))}:${pad(Math.floor(secs / 60) % 60)}:${pad(secs % 60)}`;
+    $('#clock').textContent = str;
+    $('#feed-time').textContent = `T+${str}`;
+  }
+
+  function setMuted(m) {
+    Sound.muted = m;
+    const b = $('#btn-mute');
+    b.textContent = m ? 'Sound: off' : 'Sound: on';
+    b.setAttribute('aria-pressed', String(m));
+    try { localStorage.setItem('pc-drone-muted', m ? '1' : '0'); } catch (e) { /* storage blocked: fine */ }
+  }
+
+  function makeFireflies() {
+    const host = $('#fireflies');
+    const count = 14;
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      const style = [
+        `left:${Math.random() * 100}%`, `top:${30 + Math.random() * 65}%`,
+        `--x:${Math.round(Math.random() * 80 - 40)}px`, `--y:${Math.round(Math.random() * -80)}px`,
+        `--t:${(6 + Math.random() * 6).toFixed(1)}s`, `--d:${(-Math.random() * 6).toFixed(1)}s`,
+      ].join(';');
+      html += `<span class="firefly" style="${style}"></span>`;
+    }
+    host.innerHTML = html;
+  }
+
+  function resetAll() {
+    state.votes = { stay: 0, home: 0 };
+    renderVotes();
+    newCipher();
+    newLock();
+    showScene('title');
+  }
+
+  // ================= Input wiring (pointer + keyboard) =================
+  function wire() {
+    document.addEventListener('pointerdown', () => Sound.unlock(), { once: true });
+    $('#btn-start').addEventListener('click', () => { Sound.unlock(); Sound.tap(); showScene('cipher'); });
+    $('#btn-to-lock').addEventListener('click', () => { Sound.tap(); showScene('lock'); });
+    $('#btn-debate').addEventListener('click', () => { Sound.tap(); showScene('debate'); });
+    $('#btn-again').addEventListener('click', () => { Sound.tap(); resetAll(); });
+    $('#btn-retry').addEventListener('click', () => { $('#overlay-lose').hidden = true; Sound.tap(); newLock(); });
+    $('#btn-mute').addEventListener('click', () => { Sound.unlock(); setMuted(!Sound.muted); });
+
+    $('#keypad').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.hasAttribute('data-del')) cipherDelete();
+      else cipherInput(Number(b.dataset.digit));
+    });
+    $('#picker').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-sym]');
+      if (b) pickSymbol(b.dataset.sym);
+    });
+    $('#board').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-slot]');
+      if (b) clearSlot(Number(b.dataset.slot));
+    });
+    $('#btn-send').addEventListener('click', sendGuess);
+    $('#btn-undo').addEventListener('click', undo);
+    $('#btn-hint').addEventListener('click', useHint);
+    document.querySelectorAll('.tally-btn').forEach((b) => b.addEventListener('click', () => {
+      const key = b.dataset.vote;
+      state.votes[key] = Math.max(0, state.votes[key] + Number(b.dataset.delta));
+      Sound.tap();
+      renderVotes();
+    }));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (state.scene === 'cipher') {
+        if (/^[1-9]$/.test(e.key)) cipherInput(Number(e.key));
+        else if (e.key === 'Backspace') { e.preventDefault(); cipherDelete(); }
+      } else if (state.scene === 'lock' && $('#overlay-lose').hidden) {
+        if (/^[1-6]$/.test(e.key)) pickSymbol(CONFIG.SYMBOLS[Number(e.key) - 1]);
+        else if (e.key === 'Backspace') { e.preventDefault(); undo(); }
+        else if (e.key === 'Enter' && !(document.activeElement instanceof HTMLButtonElement)) sendGuess();
+      }
+    });
+  }
+
+  // ================= Boot =================
+  function start() {
+    document.querySelectorAll('[data-drone]').forEach((el) => { el.innerHTML = DRONE_SVG; });
+    makeFireflies();
+    buildKeypad();
+    let muted = false;
+    try { muted = localStorage.getItem('pc-drone-muted') === '1'; } catch (e) { /* ignore */ }
+    setMuted(muted);
+    wire();
+    newCipher();
+    newLock();
+    renderVotes();
+    tickClock();
+    setInterval(tickClock, 1000);
+    showScene('title');
+  }
+  start();
+})();
+</script>
+</body>
+</html>
