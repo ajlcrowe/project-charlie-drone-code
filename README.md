@@ -10,5 +10,5 @@
 - **Design source**: Freeform (vibe-coded). Dusk-rainforest palette, chunky "field tablet" panels, all art drawn as inline SVG in code. Fonts: Lilita One, Nunito, Chakra Petch (Google Fonts, OFL).
 - **Figma link or references**: none
 - **Target**: both (phone and laptop)
-- **Live URL / repo**: not deployed yet. Single self-contained `index.html`, ready for GitHub Pages.
+- **Live URL / repo**: https://ajlcrowe.github.io/project-charlie-drone-code/ · https://github.com/ajlcrowe/project-charlie-drone-code (Pages from `main`, root). Single self-contained `index.html`.
 - **Status**: Built and playtested headlessly (every path: cipher wrong/right, guesses, clue, win, lose/retry, feed, votes, play again). No console errors at 360px, 390px and 1280px widths. Tuning values are in the `CONFIG` block at the top of the script (battery, clue cost/limit, code length, timings).
